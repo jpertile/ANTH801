@@ -1,0 +1,121 @@
+---
+title: "Chaney et al. 2021"
+author: "Jonathan Pertile"
+date: "2023-11-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(knitr)
+```
+
+
+This first analysis uses data that I got directly from the publication.
+```{r}
+#change the path to whatever the path for the file you have on your computer!!
+chaney <- read.csv("/Users/jonathanpertile/Downloads/chaney-data-from-publication.csv")
+#this is the data copied from the paper directly
+kable(chaney)
+```
+
+# T-test between methods
+```{r}
+# Paired t-test
+chaney.t.test <- t.test(chaney$Clean.catch.raw.mean, chaney$Cotton.raw..STD...μg.ml.1., paired = TRUE)
+
+# Print the result
+print(chaney.t.test)
+```
+
+# Effect size between methods
+
+```{r}
+abs_diff <- abs(chaney$Raw.difference..μg.ml.1.)
+
+
+#Calculate the mean and standard deviation of the differences
+mean_diff <- mean(abs_diff)
+sd_diff <- sd(abs_diff)
+
+# Calculate the standard error of the mean (SEM)
+sem_diff <- sd_diff / sqrt(length(abs_diff))
+
+# Degrees of freedom for a one-sample t-test
+df <- length(abs_diff) - 1
+
+# Calculate the margin of error
+margin_of_error <- qt(0.975, df) * sem_diff
+
+# Calculate the confidence interval
+confidence_interval <- c(mean_diff - margin_of_error, mean_diff + margin_of_error)
+
+# Print the result
+print(paste0("Effect size: ", round(mean_diff, 2), "; CI: (", round(confidence_interval[1],2), ", ",  round(confidence_interval[2],2), ")"))
+
+```
+
+
+# Using dataset sent from Carlye
+
+Now I am using the dataset sent directly from Carlye that includes data on each replicate.
+
+```{r}
+Chaney2 <- read.csv("//Users/jonathanpertile/Downloads/chaney-data-from-chaney.csv")
+Chaney2 <- Chaney2[-c(4, 12),] #dropping the pair with an observation that has too high of a CV
+# I also added dropped the 12th row, which was empty
+kable(Chaney2, digits = 1)
+```
+
+# Finding effect size between clean catch replicates
+
+```{r}
+set.seed(13)
+differences_clean_catch <- Chaney2$clean_catch_raw2 - Chaney2$Clean_catch_raw1 
+
+# Calculate the mean and standard deviation of the differences
+mean_diff <- mean(differences_clean_catch)
+sd_diff <- sd(differences_clean_catch)
+
+# Calculate the standard error of the mean (SEM)
+sem_diff <- sd_diff / sqrt(length(abs_diff))
+
+# Degrees of freedom for a one-sample t-test
+df <- length(abs_diff) - 1
+
+# Calculate the margin of error
+margin_of_error <- qt(0.975, df) * sem_diff
+
+# Calculate the confidence interval
+confidence_interval <- c(mean_diff - margin_of_error, mean_diff + margin_of_error)
+
+# Print the result
+print(paste0("Effect size: ", round(mean_diff, 2), "; CI: (", round(confidence_interval[1],2), ", ",  round(confidence_interval[2],2), ")"))
+```
+
+# Finding effect size between cotton swab replicates
+
+```{r}
+set.seed(13)
+differences_clean_catch <- Chaney2$cotton_raw1 - Chaney2$cotton_raw2
+
+# Calculate the mean and standard deviation of the differences
+mean_diff <- mean(differences_clean_catch)
+sd_diff <- sd(differences_clean_catch)
+
+# Calculate the standard error of the mean (SEM)
+sem_diff <- sd_diff / sqrt(length(abs_diff))
+
+# Degrees of freedom for a one-sample t-test
+df <- length(abs_diff) - 1
+
+# Calculate the margin of error
+margin_of_error <- qt(0.975, df) * sem_diff
+
+# Calculate the confidence interval
+confidence_interval <- c(mean_diff - margin_of_error, mean_diff + margin_of_error)
+
+# Print the result
+print(paste0("Effect size: ", round(mean_diff, 2), "; CI: (", round(confidence_interval[1],2), ", ",  round(confidence_interval[2],2), ")"))
+```
