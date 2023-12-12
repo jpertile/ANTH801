@@ -1,0 +1,193 @@
+---
+title: "Corley2021"
+author: "Jonathan Pertile"
+date: "2023-11-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(glmmTMB)
+library(AICcmodavg)
+library(knitr)
+```
+
+Make sure to change the path name to that on your own computer! 
+```{r}
+corley <- read.csv("/Users/jonathanpertile/Downloads/corley-data-from-publication.csv", header = T)
+corley$time <- as.POSIXct(strptime(corley$time, format = "%H:%M"), 
+                          format="%Y-%m-%d %H:%M:%S")
+```
+
+Here I transform the infant ages from days to months so I can do the analysis the same as the published methods.
+```{r}
+corley <- corley %>%
+  mutate(
+    infant_cat = case_when(
+      is.na(inf.age.days) ~ "No infant",
+      inf.age.days < 90 ~ "Younger infant",
+      TRUE ~ "Older infant"
+    )
+  )
+```
+
+Now I split the dataset into 2 by sex for each model set.
+
+```{r}
+corley_m <- corley |> filter(sex == "Male")
+corley_f <- corley |> filter(sex == "Female")
+```
+
+Now I will create models for each set of variables.
+
+```{r}
+data <- corley_m
+response_variable <- "cortisol"
+
+# List of fixed effect combinations - this is from the publication
+fixed_effect_combos <- c(
+  "pregnant",
+  "infant_cat",
+  "pregnant + rep.1.yr",
+  "infant_cat + rep.1.yr",
+  "fertil.conf + pregnant",
+  "fertil.conf + pregnant + rep.1.yr",
+  "fertil.conf + infant_cat + rep.1.yr",
+  "fertil.conf * pregnant",
+  "fertil.conf * infant_cat"
+)
+
+# List of fixed effect combinations - this is from the publication
+results_df <- data.frame(
+  Model = character(length(fixed_effect_combos)),
+  FixedEffects = character(length(fixed_effect_combos)),
+  AICc = numeric(length(fixed_effect_combos)),
+  DeltaAICc = numeric(length(fixed_effect_combos)),
+  Likelihood = numeric(length(fixed_effect_combos)),
+  AICcWeight = numeric(length(fixed_effect_combos)),
+  LogLikelihood = numeric(length(fixed_effect_combos)),
+  CumulativeWeight = numeric(length(fixed_effect_combos))
+)
+
+summary_output_m <- list()
+models_m <- list()
+
+# Loop through each fixed effect combination and fit the model
+for (i in seq_along(fixed_effect_combos)) {
+  combo <- fixed_effect_combos[i]
+  
+  # Specify baseline category for infant_cat (to match published results)
+  if (grepl("infant_cat", combo)) {
+    data$infant_cat <- factor(data$infant_cat, levels = c("Younger infant", "Older infant", "No infant"))
+  }
+  
+  #this is the regression formula
+    formula <- as.formula(paste(response_variable, "~", combo, 
+                                "+ (1/group) + (1/ID)")) # all models have group
+  # and ID here
+  model <- glmmTMB(formula, data = data, family = gaussian)
+  summary_output_m[[i]] <- summary(model)
+  models_m[[i]] <- model
+  
+  # Calculate AICc using AICcmodavg
+  aicc_result <- AICc(model, modavg = TRUE)
+  
+  # Store results in the data frame
+  results_df[i, ] <- c(
+    paste0("MM", i),
+    combo,
+    aicc_result[1],
+    aicc_result[2],
+    aicc_result[3],
+    NA,  # Placeholder for AICcWeight
+    logLik(model),
+    sum(aicc_result[4:length(aicc_result)])
+  )
+}
+
+# Sort the data frame by AICc in increasing order
+M_model_set <- results_df[order(results_df$AICc, decreasing = T), ]
+M_model_set$AICc <- as.numeric(M_model_set$AICc)
+#calculate other model parameters
+M_model_set <- M_model_set |> 
+  mutate(
+    DeltaAICc = AICc - min(AICc),
+    Likelihood = exp(-0.5 * DeltaAICc),
+    AICcWeight = exp(-0.5 * DeltaAICc) / sum(exp(-0.5 * DeltaAICc)),
+    CumulativeWeight = cumsum(AICcWeight))
+
+kable(M_model_set, digits = 2)
+```
+
+
+Now for females:
+
+```{r}
+data <- corley_f
+response_variable <- "cortisol"
+
+results_df2 <- data.frame(
+  Model = character(length(fixed_effect_combos)),
+  FixedEffects = character(length(fixed_effect_combos)),
+  AICc = numeric(length(fixed_effect_combos)),
+  DeltaAICc = numeric(length(fixed_effect_combos)),
+  Likelihood = numeric(length(fixed_effect_combos)),
+  AICcWeight = numeric(length(fixed_effect_combos)),
+  LogLikelihood = numeric(length(fixed_effect_combos)),
+  CumulativeWeight = numeric(length(fixed_effect_combos))
+)
+
+summary_output_f <- list()
+models_f <- list()
+
+# Loop through each fixed effect combination and fit the model
+for (i in seq_along(fixed_effect_combos)) {
+  combo <- fixed_effect_combos[i]
+  
+  # Specify baseline category for infant_cat (to match published results)
+  if (grepl("infant_cat", combo)) {
+    data$infant_cat <- factor(data$infant_cat, levels = c("Younger infant", "Older infant", "No infant"))
+  }
+  
+  #this is the regression formula
+    formula <- as.formula(paste(response_variable, "~", combo, 
+                                "+ (1/group) + (1/ID)")) # all models have group
+  # and ID here
+  model <- glmmTMB(formula, data = data, family = gaussian)
+  summary_output_m[[i]] <- summary(model)
+  models_f[[i]] <- model
+  
+  # Calculate AICc using AICcmodavg
+  aicc_result <- AICc(model, modavg = TRUE)
+  
+  # Store results in the data frame
+  results_df2[i, ] <- c(
+    paste0("FM", i),
+    combo,
+    aicc_result[1],
+    aicc_result[2],
+    aicc_result[3],
+    NA,  # Placeholder for AICcWeight
+    logLik(model),
+    sum(aicc_result[4:length(aicc_result)])
+  )
+}
+
+# Sort the data frame by AICc in increasing order
+F_model_set <- results_df2[order(results_df$AICc, decreasing = T), ]
+#calculate other model parameters
+F_model_set$AICc <- as.numeric(F_model_set$AICc)
+F_model_set <- F_model_set |> 
+  mutate(
+    DeltaAICc = AICc - min(AICc),
+    Likelihood = exp(-0.5 * DeltaAICc),
+    AICcWeight = exp(-0.5 * DeltaAICc) / sum(exp(-0.5 * DeltaAICc)),
+    CumulativeWeight = cumsum(AICcWeight))
+
+
+kable(F_model_set, digits = 2)
+
+
+```
+
